@@ -15,38 +15,40 @@
  * limitations under the License.
  */
 
-package org.apache.spark.sql.streaming
+package org.apache.spark.sql.catalyst
 
-import org.apache.spark.sql.catalyst.SqlParser
-import org.apache.spark.sql.catalyst.analysis.UnresolvedRelation
-import org.apache.spark.sql.catalyst.plans.logical.{Subquery, LogicalPlan}
+import org.apache.spark.sql.catalyst.analysis._
+import org.apache.spark.sql.catalyst.plans.logical._
+import org.apache.spark.sql.streaming.WindowedLogicalPlan
+import org.apache.spark.sql.types._
 import org.apache.spark.streaming.{Duration, Milliseconds, Minutes, Seconds}
 
-/**
- * Stream SQL parser to extend existed sql parser with time-based window support. Query can be
- * written as:
- * "SELECT * FROM table OVER (WINDOW '6' SECONDS, SLIDE '3' SECONDS)" GROUP BY ...
- *
- * Definition of time-based window semantics:
- *
- * OVER ( WINDOW 'stringLit' MILLISECONDS|SECONDS|MINUTES \
- * [, SLIDE 'stringLit' MILLISECONDS|SECONDS|MINUTES])
- *
- * The time-based window support is different from SQL standard row-based window function,
- * in which time-based window is a constraint of stream relation, so it must be followed by
- * " FROM streamized_table OVER (...), currently it has some limitations:
- * 1. WINDOW alias like SELECT ... FROM table OVER w ... WINDOW w (WINDOW "6" SECONDS,
- * ...) is not supported yet.
- * 2. for windowed join, two streamized table need to have same window constraint,
- * it is the constraint of Spark Streaming.
- * 3. Mix time-based window and row-based window is not supported yet.
- */
-private[streaming]
-class StreamSQLParser(streamSqlConnector: StreamSQLContext) extends SqlParser {
+import scala.language.implicitConversions
 
+/**
+  * Stream SQL parser to extend existed sql parser with time-based window support. Query can be
+  * written as:
+  * "SELECT * FROM table OVER (WINDOW '6' SECONDS, SLIDE '3' SECONDS)" GROUP BY ...
+  *
+  * Definition of time-based window semantics:
+  *
+  * OVER ( WINDOW 'stringLit' MILLISECONDS|SECONDS|MINUTES \
+  * [, SLIDE 'stringLit' MILLISECONDS|SECONDS|MINUTES])
+  *
+  * The time-based window support is different from SQL standard row-based window function,
+  * in which time-based window is a constraint of stream relation, so it must be followed by
+  * " FROM streamized_table OVER (...), currently it has some limitations:
+  * 1. WINDOW alias like SELECT ... FROM table OVER w ... WINDOW w (WINDOW "6" SECONDS,
+  * ...) is not supported yet.
+  * 2. for windowed join, two streamized table need to have same window constraint,
+  * it is the constraint of Spark Streaming.
+  * 3. Mix time-based window and row-based window is not supported yet.
+  */
+
+object StreamSqlParser extends AbstractSparkSQLParser with DataTypeParser with SqlParser{
   def apply(input: String, exceptionOnError: Boolean): Option[LogicalPlan] = {
     try {
-      Some(apply(input))
+      Some(parse(input))
     } catch {
       case _ if !exceptionOnError => None
       case x: Throwable => throw x
@@ -74,20 +76,19 @@ class StreamSQLParser(streamSqlConnector: StreamSQLContext) extends SqlParser {
 
   protected override lazy val relationFactor: Parser[LogicalPlan] =
     ( rep1sep(ident, ".") ~ windowOptions.? ~ (opt(AS) ~> opt(ident)) ^^ {
-        case tableIdent ~ window ~ alias => window.map { w =>
-          WindowedLogicalPlan(
-            w._1,
-            w._2,
-            UnresolvedRelation(tableIdent, alias))
-        }.getOrElse(UnresolvedRelation(tableIdent, alias))
-      }
-    | ("(" ~> start <~ ")") ~ windowOptions.? ~ (AS.? ~> ident) ^^ {
-        case s ~ w ~ a => w.map { x =>
-          WindowedLogicalPlan(
-            x._1,
-            x._2,
-            Subquery(a, s))
-        }.getOrElse(Subquery(a, s))
-      }
-    )
+      case tableIdent ~ window ~ alias => window.map { w =>
+        WindowedLogicalPlan(
+          w._1,
+          w._2,
+          UnresolvedRelation(tableIdent, alias))
+      }.getOrElse(UnresolvedRelation(tableIdent, alias))
+    }
+      | ("(" ~> start <~ ")") ~ windowOptions.? ~ (AS.? ~> ident) ^^ {
+      case s ~ w ~ a => w.map { x =>
+        WindowedLogicalPlan(
+          x._1,
+          x._2,
+          Subquery(a, s))
+      }.getOrElse(Subquery(a, s))
+    })
 }
