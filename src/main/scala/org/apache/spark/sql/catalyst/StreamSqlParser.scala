@@ -20,8 +20,9 @@ package org.apache.spark.sql.catalyst
 import org.apache.spark.sql.catalyst.analysis._
 import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.streaming.WindowedLogicalPlan
-import org.apache.spark.sql.types._
+import org.apache.spark.sql.catalyst.util.DataTypeParser
 import org.apache.spark.streaming.{Duration, Milliseconds, Minutes, Seconds}
+
 
 import scala.language.implicitConversions
 
@@ -45,7 +46,7 @@ import scala.language.implicitConversions
   * 3. Mix time-based window and row-based window is not supported yet.
   */
 
-object StreamSqlParser extends AbstractSparkSQLParser with DataTypeParser with SqlParser{
+object StreamSqlParser extends AbstractSparkSQLParser with DataTypeParser with SqlParser {
   def apply(input: String, exceptionOnError: Boolean): Option[LogicalPlan] = {
     try {
       Some(parse(input))
@@ -75,8 +76,9 @@ object StreamSqlParser extends AbstractSparkSQLParser with DataTypeParser with S
     }
 
   protected override lazy val relationFactor: Parser[LogicalPlan] =
-    ( rep1sep(ident, ".") ~ windowOptions.? ~ (opt(AS) ~> opt(ident)) ^^ {
+    ( tableIdentifier ~ windowOptions.? ~ (opt(AS) ~> opt(ident)) ^^ {
       case tableIdent ~ window ~ alias => window.map { w =>
+
         WindowedLogicalPlan(
           w._1,
           w._2,

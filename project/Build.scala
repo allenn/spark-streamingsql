@@ -15,16 +15,18 @@
  * limitations under the License.
  */
 
-import sbt._
-import Keys._
-
 import com.typesafe.sbt.SbtScalariform._
 import org.scalastyle.sbt.ScalastylePlugin
+import sbt.Keys._
+import sbt._
+
 import scalariform.formatter.preferences._
 
 object Properties {
-  val SPARK_VERSION = "1.5.1"
+  val SPARK_VERSION = "1.6.1"
+
 }
+
 
 object StreamSQLBuild extends Build {
 
@@ -32,23 +34,34 @@ object StreamSQLBuild extends Build {
 
   lazy val root = Project(id = "spark-streamsql", base = file("."),
     settings = commonSettings ++ Seq(
+      name := "spark-streamingSql-1.6",
+      version := "0.1.0",
       description := "Spark streamsql extension",
       libraryDependencies ++= sparkDeps ++ testDeps,
-      parallelExecution in Test := false)
+      parallelExecution in Test := false,
+      publishMavenStyle := true,
+      publishTo := Some(
+        Resolver.file(
+          "local-repo", new File(Path.userHome.getAbsolutePath + "/.m2/repository"
+          )
+        )
+      )
+    )
   )
 
   lazy val runScalaStyle = taskKey[Unit]("testScalaStyle")
 
   // rat task need to be added later.
   lazy val runRat = taskKey[Unit]("run-rat-task")
-  lazy val runRatTask = runRat:= {
+  lazy val runRatTask = runRat := {
     "bin/run-rat.sh" !
   }
 
+
   lazy val commonSettings = Seq(
     organization := "spark.streamsql",
-    version      := "0.1.0-SNAPSHOT",
-    crossPaths   := false,
+    version := "0.1.0-SNAPSHOT",
+    crossPaths := false,
     scalaVersion := "2.10.4",
     scalaBinaryVersion := "2.10",
     retrieveManaged := true,
@@ -66,6 +79,7 @@ object StreamSQLBuild extends Build {
       "-language:postfixOps"),
     resolvers ++= Dependencies.repos,
     parallelExecution in Test := false
+
   ) ++ scalariformPrefs ++ ScalastylePlugin.Settings
 
   lazy val scalariformPrefs = defaultScalariformSettings ++ Seq(
@@ -75,4 +89,6 @@ object StreamSQLBuild extends Build {
       .setPreference(DoubleIndentClassDeclaration, true)
       .setPreference(PreserveDanglingCloseParenthesis, false)
   )
+
+
 }

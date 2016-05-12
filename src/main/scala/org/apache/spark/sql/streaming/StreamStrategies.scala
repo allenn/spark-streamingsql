@@ -17,32 +17,33 @@
 
 package org.apache.spark.sql.streaming
 
-import org.apache.spark.sql.Strategy
-import org.apache.spark.sql.catalyst.planning.QueryPlanner
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.execution.SparkPlan
 import org.apache.spark.sql.execution.datasources.LogicalRelation
+import org.apache.spark.sql.execution.{SparkPlan, SparkPlanner}
+import org.apache.spark.sql.{SQLContext, Strategy}
 import org.apache.spark.streaming.Time
 
 /** Stream related strategies to map stream specific logical plan to physical plan. */
-class StreamStrategies extends QueryPlanner[SparkPlan] {
+class StreamStrategies(sqlContext: SQLContext) extends SparkPlanner(sqlContext) {
 
-  def strategies: Seq[Strategy] = StreamStrategy :: Nil
+  override def strategies: Seq[Strategy] = Seq(StreamStrategy) ++ super.strategies
 
   object StreamStrategy extends Strategy {
     def apply(plan: LogicalPlan): Seq[SparkPlan] = plan match {
       case LogicalDStream(output, stream) => PhysicalDStream(output, stream) :: Nil
-      case x @ WindowedLogicalPlan(w, s, child) =>
+      case x@WindowedLogicalPlan(w, s, child) =>
         WindowedPhysicalPlan(w, s, planLater(child)) :: Nil
-      case l @ LogicalRelation(t: StreamPlan) =>
+      case l@LogicalRelation(t: StreamPlan, _) =>
         PhysicalDStream(l.output, t.stream) :: Nil
       case _ => Nil
     }
   }
+
 }
 
 private[streaming] object DStreamHelper {
   var validTime: Time = null
+
   def setValidTime(time: Time): Unit = {
     validTime = time
   }

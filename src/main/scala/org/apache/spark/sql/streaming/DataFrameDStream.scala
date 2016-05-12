@@ -21,7 +21,7 @@ import org.apache.spark.annotation.Experimental
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.catalyst.{CatalystTypeConverters, InternalRow}
-import org.apache.spark.sql.execution.SparkPlan
+import org.apache.spark.sql.execution.{QueryExecution, SparkPlan}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.streaming.dstream.DStream
 import org.apache.spark.streaming.{Duration, Time}
@@ -40,7 +40,7 @@ import org.apache.spark.streaming.{Duration, Time}
 @Experimental
 class DataFrameDStream(
     @transient val streamSqlContext: StreamSQLContext,
-    @transient val queryExecution: SQLContext#QueryExecution)
+    @transient val queryExecution: QueryExecution)
   extends DStream[Row](streamSqlContext.streamingContext){
 
   val dataFrame = new DataFrame(streamSqlContext.sqlContext, queryExecution)

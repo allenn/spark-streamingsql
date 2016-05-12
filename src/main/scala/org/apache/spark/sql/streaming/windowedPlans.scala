@@ -51,9 +51,10 @@ case class WindowedPhysicalPlan(
 
     private lazy val parentStreams = {
       def traverse(plan: SparkPlan): Seq[DStream[InternalRow]] = plan match {
-          case x: StreamPlan => x.stream :: Nil
+          case x: StreamPlan => Seq(x.stream)
           case _ => plan.children.flatMap(traverse(_))
       }
+
       val streams = traverse(child)
       assert(!streams.isEmpty, s"Input query and related plan $child is not a stream plan")
       streams

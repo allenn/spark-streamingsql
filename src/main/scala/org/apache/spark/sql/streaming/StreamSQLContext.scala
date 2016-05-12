@@ -21,12 +21,13 @@ import org.apache.spark.Logging
 import org.apache.spark.annotation.{DeveloperApi, Experimental}
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.{InternalRow, ScalaReflection, StreamSqlParser}
-import org.apache.spark.sql.execution.datasources.json.{InferSchema, JSONRelation}
-import org.apache.spark.sql.execution.{RDDConversions, SparkPlan}
+import org.apache.spark.sql.catalyst.{InternalRow, ScalaReflection, StreamSqlParser, TableIdentifier}
+import org.apache.spark.sql.execution.RDDConversions
+import org.apache.spark.sql.execution.datasources.json. JSONRelation
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.streaming.StreamingContext
 import org.apache.spark.streaming.dstream.DStream
+import org.apache.spark.sql.execution.datasources.json.JSONSchema._
 
 import scala.reflect.runtime.universe.TypeTag
 
@@ -36,8 +37,8 @@ import scala.reflect.runtime.universe.TypeTag
   * and LINQ-like query on DStream
   */
 class StreamSQLContext(
-    val streamingContext: StreamingContext,
-    val sqlContext: SQLContext) extends Logging {
+                        val streamingContext: StreamingContext,
+                        val sqlContext: SQLContext) extends Logging {
 
   // Get internal field of SQLContext to better control the flow.
   protected lazy val catalog = sqlContext.catalog
@@ -46,17 +47,17 @@ class StreamSQLContext(
   protected lazy val streamSqlParser = StreamSqlParser
 
   // Add stream specific strategy to the planner.
-  protected lazy val streamStrategies = new StreamStrategies
+  protected lazy val streamStrategies = new StreamStrategies(sqlContext)
   sqlContext.experimental.extraStrategies = streamStrategies.strategies
 
   /** udf interface for user to register udf through it */
   val udf = sqlContext.udf
 
   /**
-   * Create a SchemaDStream from a normal DStream of case classes.
-   */
+    * Create a SchemaDStream from a normal DStream of case classes.
+    */
   implicit def createSchemaDStream[A <: Product : TypeTag](stream: DStream[A]): DataFrameDStream = {
-    SparkPlan.currentContext.set(sqlContext)
+    SQLContext.setActive(sqlContext)
     StreamPlan.currentContext.set(this)
     val schema = ScalaReflection.schemaFor[A].dataType.asInstanceOf[StructType]
     val attributeSeq = schema.toAttributes
@@ -66,23 +67,23 @@ class StreamSQLContext(
   }
 
   /**
-   * :: DeveloperApi ::
-   * Allows catalyst LogicalPlans to be executed as a SchemaDStream. Not this logical plan should
-   * be streaming meaningful.
-   */
+    * :: DeveloperApi ::
+    * Allows catalyst LogicalPlans to be executed as a SchemaDStream. Not this logical plan should
+    * be streaming meaningful.
+    */
   @DeveloperApi
   implicit def logicalPlanToStreamQuery(plan: LogicalPlan): DataFrameDStream =
     new DataFrameDStream(this, plan)
 
   /**
-   * :: DeveloperApi ::
-   * Creates a [[DataFrameDStream]] from and [[DStream]] containing
-   * [[InternalRow]]s by applying a schema to
-   * this DStream.
-   */
+    * :: DeveloperApi ::
+    * Creates a [[DataFrameDStream]] from and [[DStream]] containing
+    * [[InternalRow]]s by applying a schema to
+    * this DStream.
+    */
   @DeveloperApi
   def createSchemaDStream(rowStream: DStream[InternalRow], schema: StructType): DataFrameDStream = {
-    SparkPlan.currentContext.set(sqlContext)
+    SQLContext.setActive(sqlContext)
     StreamPlan.currentContext.set(this)
     val attributes = schema.toAttributes
     val logicalPlan = LogicalDStream(attributes, rowStream)(this)
@@ -90,80 +91,83 @@ class StreamSQLContext(
   }
 
   /**
-   * Register DStream as a temporary table in the catalog. Temporary table exist only during the
-   * lifetime of this instance of sql context.
-   */
+    * Register DStream as a temporary table in the catalog. Temporary table exist only during the
+    * lifetime of this instance of sql context.
+    */
   def registerDStreamAsTable(stream: DataFrameDStream, tableName: String): Unit = {
-    catalog.registerTable(Seq(tableName), stream.dataFrame.logicalPlan)
+    catalog.registerTable(TableIdentifier(tableName), stream.dataFrame.logicalPlan)
   }
 
   /**
-   * Drop the temporary stream table with given table name in the catalog.
-   */
+    * Drop the temporary stream table with given table name in the catalog.
+    */
   def dropTable(tableName: String): Unit = {
-    catalog.unregisterTable(Seq(tableName))
+    catalog.unregisterTable(TableIdentifier(tableName))
   }
 
   /**
-   * Returns the specified stream table as a SchemaDStream
-   */
+    * Returns the specified stream table as a SchemaDStream
+    */
   def table(tableName: String): DataFrameDStream = {
-    new DataFrameDStream(this, catalog.lookupRelation(Seq(tableName)))
+    new DataFrameDStream(this, catalog.lookupRelation(TableIdentifier(tableName)))
   }
 
   /**
-   * Execute a SQL or HiveQL query on stream table, returning the result as a SchemaDStream. The
-   * actual parser backed by the initialized ql context.
-   */
+    * Execute a SQL or HiveQL query on stream table, returning the result as a SchemaDStream. The
+    * actual parser backed by the initialized ql context.
+    */
   def sql(sqlText: String): DataFrameDStream = {
-    SparkPlan.currentContext.set(sqlContext)
+    SQLContext.setActive(sqlContext)
     StreamPlan.currentContext.set(this)
+
     val plan = streamSqlParser(sqlText, false).getOrElse {
-      sqlContext.sql(sqlText).queryExecution.logical }
+      sqlContext.sql(sqlText).queryExecution.logical
+    }
+
     new DataFrameDStream(this, plan)
   }
 
   /**
-   * Execute a command or DDL query and directly get the result (depending on the side effect of
-   * this command).
-   */
+    * Execute a command or DDL query and directly get the result (depending on the side effect of
+    * this command).
+    */
   def command(sqlText: String): String = {
-    SparkPlan.currentContext.set(sqlContext)
+    SQLContext.setActive(sqlContext)
     StreamPlan.currentContext.set(this)
     sqlContext.sql(sqlText).collect().map(_.toString()).mkString("\n")
   }
 
   /**
-   * :: Experimental ::
-   * Infer the schema from the existing JSON file
-   */
+    * :: Experimental ::
+    * Infer the schema from the existing JSON file
+    */
   def inferJsonSchema(path: String, samplingRatio: Double = 1.0): StructType = {
     val jsonRdd = streamingContext.sparkContext.textFile(path)
-    InferSchema(jsonRdd, samplingRatio, sqlContext.conf.columnNameOfCorruptRecord)
+
+    inferSchema(jsonRdd,sqlContext.conf.columnNameOfCorruptRecord,samplingRatio)
   }
 
   /**
-   * :: Experimental ::
-   * Get a SchemaDStream with schema support from a raw DStream of String,
-   * in which each string is a json record.
-   */
+    * :: Experimental ::
+    * Get a SchemaDStream with schema support from a raw DStream of String,
+    * in which each string is a json record.
+    */
   @Experimental
   def jsonDStream(json: DStream[String], userSpecifiedSchema: StructType): DataFrameDStream = {
     //    val colNameOfCorruptedJsonRecord = sqlContext.conf.columnNameOfCorruptRecord
     val rowDStream = json.transform { jsonRDD =>
       val rowrdd = sqlContext.baseRelationToDataFrame(
-        new JSONRelation(Some(jsonRDD),
-          1.0, Some(userSpecifiedSchema), None, None)(sqlContext)).rdd
+        new JSONRelation(Some(jsonRDD), Some(userSpecifiedSchema), None, None)(sqlContext)).rdd
       RDDConversions.rowToRowRdd(rowrdd, userSpecifiedSchema.map(_.dataType))
     }
     createSchemaDStream(rowDStream, userSpecifiedSchema)
   }
 
   /**
-   * :: Experimental ::
-   * Infer schema from existing json file with `path` and `samplingRatio`. Get the parsed
-   * row DStream with schema support from input json string DStream.
-   */
+    * :: Experimental ::
+    * Infer schema from existing json file with `path` and `samplingRatio`. Get the parsed
+    * row DStream with schema support from input json string DStream.
+    */
   @Experimental
   def jsonDStream(json: DStream[String], path: String, samplingRatio: Double = 1.0)
   : DataFrameDStream = {
