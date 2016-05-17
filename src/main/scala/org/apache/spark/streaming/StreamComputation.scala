@@ -14,20 +14,38 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.spark.streaming
 
-package org.apache.spark.sql.streaming
-
+import org.apache.spark.SparkContext
+import org.apache.spark.rdd.EmptyRDD
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.streaming.dstream.DStream
 
-private[streaming] object StreamPlan {
-  private val currentContext = new ThreadLocal[StreamSQLContext]()
+/**
+  * Created by francisco.aranda@gft.com on 12/5/16.
+  */
+object StreamComputation {
 
-  def setActive(active: StreamSQLContext): Unit = currentContext.set(active)
-  def getActive():StreamSQLContext = currentContext.get()
-}
+  private[spark] object DStreamHelper {
+    var validTime: Time = null
 
-trait StreamPlan {
-  def streamSqlContext = StreamPlan.getActive()
-  def stream: DStream[InternalRow]
+    def setValidTime(time: Time): Unit = {
+      validTime = time
+    }
+  }
+
+  import DStreamHelper._
+
+  implicit class GetOrCompute(stream: DStream[InternalRow]) {
+
+    def execute(sparkContext: SparkContext) = {
+      assert(validTime != null)
+
+      stream.getOrCompute(validTime)
+        .getOrElse(new EmptyRDD[InternalRow](sparkContext))
+    }
+
+  }
+
+
 }

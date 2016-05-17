@@ -3,13 +3,13 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <groupId>spark.streamsql</groupId>
-    <artifactId>spark.streamsql</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <groupId>org.apache.spark</groupId>
+    <artifactId>spark-streamsql_${scala.binary.version}</artifactId>
+    <version>${spark.version}_0.1.0</version>
 
     <properties>
         <scala.version>2.10.4</scala.version>
-        <spark.version>1.5.1</spark.version>
+        <spark.version>1.6.0</spark.version>
         <PermGen>64m</PermGen>
         <MaxPermGen>512m</MaxPermGen>
         <CodeCacheSize>512m</CodeCacheSize>

@@ -23,7 +23,7 @@ import org.apache.spark.sql.catalyst.plans.logical
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.execution
 import org.apache.spark.sql.execution.SparkPlan
-import org.apache.spark.streaming.{Time, Duration}
+import org.apache.spark.streaming.{Duration, StreamComputation, Time}
 import org.apache.spark.streaming.dstream.DStream
 
 /**
@@ -65,12 +65,14 @@ case class WindowedPhysicalPlan(
     .getOrElse(wrappedStream.window(windowDuration))
 
   override def output = child.output
+  import StreamComputation._
+  import DStreamHelper._
 
   override def doExecute() = {
-    import DStreamHelper._
-    assert(validTime != null)
+
     Utils.invoke(classOf[DStream[InternalRow]], stream, "getOrCompute", (classOf[Time], validTime))
       .asInstanceOf[Option[RDD[InternalRow]]]
       .getOrElse(new EmptyRDD[InternalRow](sparkContext))
   }
+
 }

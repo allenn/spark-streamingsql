@@ -20,15 +20,14 @@ package org.apache.spark.sql.catalyst
 import org.apache.spark.sql.catalyst.analysis._
 import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.streaming.WindowedLogicalPlan
-import org.apache.spark.sql.catalyst.util.DataTypeParser
 import org.apache.spark.streaming.{Duration, Milliseconds, Minutes, Seconds}
-
 
 import scala.language.implicitConversions
 
 /**
   * Stream SQL parser to extend existed sql parser with time-based window support. Query can be
   * written as:
+  *
   * "SELECT * FROM table OVER (WINDOW '6' SECONDS, SLIDE '3' SECONDS)" GROUP BY ...
   *
   * Definition of time-based window semantics:
@@ -45,8 +44,7 @@ import scala.language.implicitConversions
   * it is the constraint of Spark Streaming.
   * 3. Mix time-based window and row-based window is not supported yet.
   */
-
-object StreamSqlParser extends AbstractSparkSQLParser with DataTypeParser with SqlParser {
+object StreamSqlParser extends SparkBasicSqlParser {
   def apply(input: String, exceptionOnError: Boolean): Option[LogicalPlan] = {
     try {
       Some(parse(input))
@@ -57,26 +55,31 @@ object StreamSqlParser extends AbstractSparkSQLParser with DataTypeParser with S
   }
 
   protected def OVER = Keyword("OVER")
+
   protected def WINDOW = Keyword("WINDOW")
+
   protected def SLIDE = Keyword("SLIDE")
 
   protected def MILLISECONDS = Keyword("MILLISECONDS")
+
   protected def SECONDS = Keyword("SECONDS")
+
   protected def MINUTES = Keyword("MINUTES")
 
+
   protected lazy val durationType: Parser[Duration] =
-    ( stringLit <~ MILLISECONDS ^^ { case s => Milliseconds(s.toInt) }
+    (stringLit <~ MILLISECONDS ^^ { case s => Milliseconds(s.toInt) }
       | stringLit <~ SECONDS ^^ { case s => Seconds(s.toInt) }
       | stringLit <~ MINUTES ^^ { case s => Minutes(s.toInt) })
 
   protected lazy val windowOptions: Parser[(Duration, Option[Duration])] =
-    OVER ~ "(" ~> ( WINDOW ~> durationType) ~
-      ( "," ~ SLIDE ~> durationType).? <~ ")" ^^ {
+    OVER ~ "(" ~> (WINDOW ~> durationType) ~
+      ("," ~ SLIDE ~> durationType).? <~ ")" ^^ {
       case w ~ s => (w, s)
     }
 
   protected override lazy val relationFactor: Parser[LogicalPlan] =
-    ( tableIdentifier ~ windowOptions.? ~ (opt(AS) ~> opt(ident)) ^^ {
+    (tableIdentifier ~ windowOptions.? ~ (opt(AS) ~> opt(ident)) ^^ {
       case tableIdent ~ window ~ alias => window.map { w =>
 
         WindowedLogicalPlan(
@@ -93,4 +96,5 @@ object StreamSqlParser extends AbstractSparkSQLParser with DataTypeParser with S
           Subquery(a, s))
       }.getOrElse(Subquery(a, s))
     })
+
 }

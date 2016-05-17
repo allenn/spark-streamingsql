@@ -17,12 +17,12 @@
 
 package org.apache.spark.sql.streaming.examples
 
-import scala.collection.mutable.ListBuffer
-
 import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.sql.streaming.StreamSQLContext
-import org.apache.spark.streaming.{Duration, StreamingContext}
 import org.apache.spark.streaming.dstream.ConstantInputDStream
+import org.apache.spark.streaming.{Duration, StreamingContext}
+
+import scala.collection.mutable.ListBuffer
 
 object UdafEnabledQuery {
 
@@ -33,17 +33,19 @@ object UdafEnabledQuery {
     val sc = ssc.sparkContext
     val hiveContext = new HiveContext(sc)
     val streamSQlContext = new StreamSQLContext(ssc, hiveContext)
+
+    hiveContext.udf.register("addOne", (x: Int) => x + 1)
+
     val dummyRDD = sc.makeRDD(1 to 10).map(i => Data(s"jack$i", i))
     val dummyStream = new ConstantInputDStream[Data](ssc, dummyRDD)
-    val schemaStream = streamSQlContext.createSchemaDStream(dummyStream)
+    val schemaStream = streamSQlContext.createDataFrameDStream(dummyStream)
     streamSQlContext.registerDStreamAsTable(schemaStream, "data")
-    val resultList = ListBuffer[String]()
     streamSQlContext.sql(
       """SELECT
-        |    percentile(money,0.8),
-        |    stddev_pop(money)
+        | name, addOne(money)
         |FROM data
       """.stripMargin).map(_.copy()).print()
+
     ssc.start()
     ssc.awaitTerminationOrTimeout(30 * 1000)
     ssc.stop()

@@ -41,10 +41,3 @@ class StreamStrategies(sqlContext: SQLContext) extends SparkPlanner(sqlContext) 
 
 }
 
-private[streaming] object DStreamHelper {
-  var validTime: Time = null
-
-  def setValidTime(time: Time): Unit = {
-    validTime = time
-  }
-}

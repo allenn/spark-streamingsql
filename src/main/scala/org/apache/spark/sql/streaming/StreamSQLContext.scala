@@ -23,11 +23,11 @@ import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.{InternalRow, ScalaReflection, StreamSqlParser, TableIdentifier}
 import org.apache.spark.sql.execution.RDDConversions
-import org.apache.spark.sql.execution.datasources.json. JSONRelation
+import org.apache.spark.sql.execution.datasources.json.JSONRelation
+import org.apache.spark.sql.execution.datasources.json.JSONSchema._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.streaming.StreamingContext
 import org.apache.spark.streaming.dstream.DStream
-import org.apache.spark.sql.execution.datasources.json.JSONSchema._
 
 import scala.reflect.runtime.universe.TypeTag
 
@@ -36,9 +36,8 @@ import scala.reflect.runtime.universe.TypeTag
   * [[org.apache.spark.sql.hive.HiveContext]]), offer user the ability to manipulate SQL
   * and LINQ-like query on DStream
   */
-class StreamSQLContext(
-                        val streamingContext: StreamingContext,
-                        val sqlContext: SQLContext) extends Logging {
+class StreamSQLContext(val streamingContext: StreamingContext,
+                       val sqlContext: SQLContext) extends Logging {
 
   // Get internal field of SQLContext to better control the flow.
   protected lazy val catalog = sqlContext.catalog
@@ -54,11 +53,12 @@ class StreamSQLContext(
   val udf = sqlContext.udf
 
   /**
-    * Create a SchemaDStream from a normal DStream of case classes.
+    * Create a DataFrameDStream from a normal DStream of case classes.
     */
-  implicit def createSchemaDStream[A <: Product : TypeTag](stream: DStream[A]): DataFrameDStream = {
+  implicit def createDataFrameDStream[A <: Product : TypeTag](stream: DStream[A])
+  : DataFrameDStream = {
     SQLContext.setActive(sqlContext)
-    StreamPlan.currentContext.set(this)
+    StreamPlan.setActive(this)
     val schema = ScalaReflection.schemaFor[A].dataType.asInstanceOf[StructType]
     val attributeSeq = schema.toAttributes
     val rowStream = stream.transform(
@@ -82,9 +82,10 @@ class StreamSQLContext(
     * this DStream.
     */
   @DeveloperApi
-  def createSchemaDStream(rowStream: DStream[InternalRow], schema: StructType): DataFrameDStream = {
+  def createDataFrameDStream(rowStream: DStream[InternalRow], schema: StructType)
+  : DataFrameDStream = {
     SQLContext.setActive(sqlContext)
-    StreamPlan.currentContext.set(this)
+    StreamPlan.setActive(this)
     val attributes = schema.toAttributes
     val logicalPlan = LogicalDStream(attributes, rowStream)(this)
     new DataFrameDStream(this, logicalPlan)
@@ -118,7 +119,7 @@ class StreamSQLContext(
     */
   def sql(sqlText: String): DataFrameDStream = {
     SQLContext.setActive(sqlContext)
-    StreamPlan.currentContext.set(this)
+    StreamPlan.setActive(this)
 
     val plan = streamSqlParser(sqlText, false).getOrElse {
       sqlContext.sql(sqlText).queryExecution.logical
@@ -133,7 +134,7 @@ class StreamSQLContext(
     */
   def command(sqlText: String): String = {
     SQLContext.setActive(sqlContext)
-    StreamPlan.currentContext.set(this)
+    StreamPlan.setActive(this)
     sqlContext.sql(sqlText).collect().map(_.toString()).mkString("\n")
   }
 
@@ -144,7 +145,7 @@ class StreamSQLContext(
   def inferJsonSchema(path: String, samplingRatio: Double = 1.0): StructType = {
     val jsonRdd = streamingContext.sparkContext.textFile(path)
 
-    inferSchema(jsonRdd,sqlContext.conf.columnNameOfCorruptRecord,samplingRatio)
+    inferSchema(jsonRdd, sqlContext.conf.columnNameOfCorruptRecord, samplingRatio)
   }
 
   /**
@@ -160,7 +161,7 @@ class StreamSQLContext(
         new JSONRelation(Some(jsonRDD), Some(userSpecifiedSchema), None, None)(sqlContext)).rdd
       RDDConversions.rowToRowRdd(rowrdd, userSpecifiedSchema.map(_.dataType))
     }
-    createSchemaDStream(rowDStream, userSpecifiedSchema)
+    createDataFrameDStream(rowDStream, userSpecifiedSchema)
   }
 
   /**

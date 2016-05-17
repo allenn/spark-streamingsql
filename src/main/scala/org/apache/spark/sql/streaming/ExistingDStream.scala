@@ -17,19 +17,19 @@
 
 package org.apache.spark.sql.streaming
 
-import org.apache.spark.rdd.{RDD, EmptyRDD}
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis.MultiInstanceRelation
 import org.apache.spark.sql.catalyst.expressions.Attribute
-import org.apache.spark.sql.catalyst.plans.logical.{Statistics, LogicalPlan}
+import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, Statistics}
 import org.apache.spark.sql.execution.SparkPlan
-import org.apache.spark.streaming.Time
+import org.apache.spark.streaming.StreamComputation
 import org.apache.spark.streaming.dstream.DStream
 
 /** A LogicalPlan wrapper of row based DStream. */
 private[streaming]
 case class LogicalDStream(output: Seq[Attribute], stream: DStream[InternalRow])
-    (val streamSqlContext: StreamSQLContext)
+                         (val streamSqlContext: StreamSQLContext)
   extends LogicalPlan with MultiInstanceRelation {
   def children = Nil
 
@@ -42,21 +42,17 @@ case class LogicalDStream(output: Seq[Attribute], stream: DStream[InternalRow])
 }
 
 /**
- * A PhysicalPlan wrapper of row based DStream, inject the validTime and generate an effective
- * RDD of current batchDuration.
- */
+  * A PhysicalPlan wrapper of row based DStream, inject the validTime and generate an effective
+  * RDD of current batchDuration.
+  */
 private[streaming]
 case class PhysicalDStream(output: Seq[Attribute], @transient stream: DStream[InternalRow])
-    extends SparkPlan with StreamPlan {
-  import DStreamHelper._
+  extends SparkPlan with StreamPlan {
+
+  import StreamComputation._
 
   def children = Nil
 
-  override protected def doExecute(): RDD[InternalRow] = {
-    assert(validTime != null)
-    Utils.invoke(classOf[DStream[InternalRow]],
-      stream, "getOrCompute", (classOf[Time], validTime))
-      .asInstanceOf[Option[RDD[InternalRow]]]
-      .getOrElse(new EmptyRDD[InternalRow](sparkContext))
-  }
+  override protected def doExecute(): RDD[InternalRow] = stream.execute(sparkContext)
+
 }

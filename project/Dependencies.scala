@@ -23,13 +23,16 @@ object Dependencies {
 
   val excludeAsm = ExclusionRule(organization = "asm")
 
+  val scope = if (provided) "provided" else "compile"
+
   lazy val sparkDeps = Seq(
-    "org.apache.spark" %% "spark-core" % SPARK_VERSION excludeAll(excludeAsm),
-    "org.apache.spark" %% "spark-sql"  % SPARK_VERSION excludeAll(excludeAsm),
-    "org.apache.spark" %% "spark-catalyst" % SPARK_VERSION excludeAll(excludeAsm),
-    "org.apache.spark" %% "spark-hive" % SPARK_VERSION excludeAll(excludeAsm),
-    "org.apache.spark" %% "spark-streaming" % SPARK_VERSION excludeAll(excludeAsm),
-    "org.apache.spark" %% "spark-streaming-kafka" % SPARK_VERSION excludeAll(excludeAsm)
+    "org.apache.spark" %% "spark-core" % SPARK_VERSION % scope excludeAll (excludeAsm),
+    "org.apache.spark" %% "spark-sql" % SPARK_VERSION % scope excludeAll (excludeAsm),
+    "org.apache.spark" %% "spark-catalyst" % SPARK_VERSION % scope excludeAll (excludeAsm),
+    "org.apache.spark" %% "spark-hive" % SPARK_VERSION % scope excludeAll (excludeAsm),
+    "org.apache.spark" %% "spark-streaming" % SPARK_VERSION % scope excludeAll (excludeAsm),
+    "org.apache.spark" %% "spark-streaming-kafka" % SPARK_VERSION
+      % scope excludeAll (excludeAsm)
   )
 
   lazy val testDeps = Seq(

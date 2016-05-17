@@ -23,6 +23,7 @@ import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.catalyst.{CatalystTypeConverters, InternalRow}
 import org.apache.spark.sql.execution.{QueryExecution, SparkPlan}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
+import org.apache.spark.streaming.StreamComputation.DStreamHelper
 import org.apache.spark.streaming.dstream.DStream
 import org.apache.spark.streaming.{Duration, Time}
 
@@ -56,6 +57,7 @@ class DataFrameDStream(
     // Set the valid batch duration for this rule to get correct RDD in DStream of this batch
     // duration
     DStreamHelper.setValidTime(validTime)
+
     // Scan the streaming logic plan to convert streaming plan to specific RDD logic plan.
     val rdd: RDD[Row] = {
       // use a local variable to make sure the map closure doesn't capture the whole DataFrame

@@ -18,15 +18,14 @@
 package org.apache.spark.sql.catalyst
 
 import scala.language.implicitConversions
-
 import org.apache.spark.sql.AnalysisException
-import org.apache.spark.sql.catalyst.analysis._
-import org.apache.spark.sql.catalyst.expressions._
-import org.apache.spark.sql.catalyst.expressions.aggregate._
-import org.apache.spark.sql.catalyst.plans._
+import org.apache.spark.sql.catalyst.analysis.{UnresolvedAttribute, _}
+import org.apache.spark.sql.catalyst.expressions.{Cast, UnaryMinus, _}
+import org.apache.spark.sql.catalyst.expressions.aggregate.{AggregateExpression, Complete, Count, HyperLogLogPlusPlus, _}
+import org.apache.spark.sql.catalyst.plans.{Inner, JoinType, _}
 import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.catalyst.util.DataTypeParser
-import org.apache.spark.sql.types._
+import org.apache.spark.sql.types.{BooleanType, NullType, StringType, _}
 import org.apache.spark.unsafe.types.CalendarInterval
 
 /**
@@ -36,11 +35,11 @@ import org.apache.spark.unsafe.types.CalendarInterval
   * Limitations:
   *  - Only supports a very limited subset of SQL.
   *
-  * This is currently included mostly for illustrative purposes. Users wanting
-  * more complete support for a SQL like language should checkout the HiveQL
-  * support in the sql/hive sub-project.
+  * This is currently included mostly for illustrative purposes.
+  * Users wanting more complete support for a SQL like language
+  * should checkout the HiveQL support in the sql/hive sub-project.
   */
-trait SqlParser extends AbstractSparkSQLParser with DataTypeParser {
+trait SparkBasicSqlParser extends AbstractSparkSQLParser with DataTypeParser {
 
   def parseExpression(input: String): Expression = synchronized {
     // Initialize the Keywords.

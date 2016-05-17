@@ -23,20 +23,20 @@ import sbt._
 import scalariform.formatter.preferences._
 
 object Properties {
-  val SPARK_VERSION = "1.6.1"
-
+  val SPARK_VERSION = "1.6.0"
+  val provided = false
 }
 
 
 object StreamSQLBuild extends Build {
 
   import Dependencies._
+  import Properties._
 
-  lazy val root = Project(id = "spark-streamsql", base = file("."),
+  lazy val root = Project(id = "spark", base = file("."),
     settings = commonSettings ++ Seq(
-      name := "spark-streamingSql-1.6",
-      version := "0.1.0",
-      description := "Spark streamsql extension",
+      name := s"spark-streaming-sql_${SPARK_VERSION}",
+      description := "Spark stream sql extension",
       libraryDependencies ++= sparkDeps ++ testDeps,
       parallelExecution in Test := false,
       publishMavenStyle := true,
@@ -59,13 +59,16 @@ object StreamSQLBuild extends Build {
 
 
   lazy val commonSettings = Seq(
-    organization := "spark.streamsql",
-    version := "0.1.0-SNAPSHOT",
+
     crossPaths := false,
     scalaVersion := "2.10.4",
     scalaBinaryVersion := "2.10",
     retrieveManaged := true,
     retrievePattern := "[type]s/[artifact](-[revision])(-[classifier]).[ext]",
+
+    organization := "org.apache.spark",
+    name := s"spark-streamingSql_${scalaBinaryVersion.value}",
+    version := s"${SPARK_VERSION}_0.1.0",
 
     runScalaStyle := {
       org.scalastyle.sbt.PluginKeys.scalastyle.toTask("").value
@@ -89,6 +92,5 @@ object StreamSQLBuild extends Build {
       .setPreference(DoubleIndentClassDeclaration, true)
       .setPreference(PreserveDanglingCloseParenthesis, false)
   )
-
 
 }

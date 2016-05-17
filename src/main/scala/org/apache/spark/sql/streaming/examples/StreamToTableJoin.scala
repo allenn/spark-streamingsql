@@ -32,7 +32,7 @@ object StreamToTableJoin {
     val streamSqlContext = new StreamSQLContext(ssc, new SQLContext(sc))
 
     val userRDD1 = sc.parallelize(1 to 100).map(i => User(i / 2, s"$i"))
-    val userStream1 = streamSqlContext.createSchemaDStream(
+    val userStream1 = streamSqlContext.createDataFrameDStream(
       new ConstantInputDStream[User](ssc, userRDD1))
     streamSqlContext.registerDStreamAsTable(userStream1, "user1")
 
@@ -41,7 +41,7 @@ object StreamToTableJoin {
     user2Df.registerTempTable("user2")
 
     val userRDD3 = sc.parallelize(1 to 100).map(i => User(i / 10, s"$i"))
-    val userStream3 = streamSqlContext.createSchemaDStream(
+    val userStream3 = streamSqlContext.createDataFrameDStream(
       new ConstantInputDStream[User](ssc, userRDD3))
     streamSqlContext.registerDStreamAsTable(userStream3, "user3")
 
