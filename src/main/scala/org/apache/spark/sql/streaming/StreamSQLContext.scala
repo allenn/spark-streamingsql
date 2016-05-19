@@ -19,13 +19,13 @@ package org.apache.spark.sql.streaming
 
 import org.apache.spark.Logging
 import org.apache.spark.annotation.{DeveloperApi, Experimental}
-import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.{InternalRow, ScalaReflection, StreamSqlParser, TableIdentifier}
 import org.apache.spark.sql.execution.RDDConversions
 import org.apache.spark.sql.execution.datasources.json.JSONRelation
 import org.apache.spark.sql.execution.datasources.json.JSONSchema._
 import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.streaming.StreamingContext
 import org.apache.spark.streaming.dstream.DStream
 
@@ -51,6 +51,7 @@ class StreamSQLContext(val streamingContext: StreamingContext,
 
   /** udf interface for user to register udf through it */
   val udf = sqlContext.udf
+
 
   /**
     * Create a DataFrameDStream from a normal DStream of case classes.
@@ -82,13 +83,23 @@ class StreamSQLContext(val streamingContext: StreamingContext,
     * this DStream.
     */
   @DeveloperApi
-  def createDataFrameDStream(rowStream: DStream[InternalRow], schema: StructType)
+  private[sql] def createSqlStream(rowStream: DStream[InternalRow], schema: StructType)
   : DataFrameDStream = {
     SQLContext.setActive(sqlContext)
     StreamPlan.setActive(this)
     val attributes = schema.toAttributes
     val logicalPlan = LogicalDStream(attributes, rowStream)(this)
     new DataFrameDStream(this, logicalPlan)
+  }
+
+  implicit def createDataFrameDStream(rowStream: DStream[Row], schema: StructType)
+  : DataFrameDStream = {
+
+    val internalRowStream = rowStream.transform { rowRDD =>
+      RDDConversions.rowToRowRdd(rowRDD, schema.map(_.dataType))
+    }
+
+    createSqlStream(internalRowStream, schema)
   }
 
   /**
@@ -161,7 +172,7 @@ class StreamSQLContext(val streamingContext: StreamingContext,
         new JSONRelation(Some(jsonRDD), Some(userSpecifiedSchema), None, None)(sqlContext)).rdd
       RDDConversions.rowToRowRdd(rowrdd, userSpecifiedSchema.map(_.dataType))
     }
-    createDataFrameDStream(rowDStream, userSpecifiedSchema)
+    createSqlStream(rowDStream, userSpecifiedSchema)
   }
 
   /**
