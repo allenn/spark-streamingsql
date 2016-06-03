@@ -1,4 +1,4 @@
-Streaming SQL for Apache Spark
+Streaming SQL for Apache Spark (Not Maintained any longer, since Spark 2.0 supports the Structured Streaming)
 ===
 
 **Streaming SQL for Apache Spark** is a project based on [Catalyst](https://github.com/apache/spark/tree/master/sql)
